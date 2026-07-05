@@ -1,0 +1,13 @@
+
+---
+- name: Validate Ansible connectivity to Linux Fleet
+  hosts: linux_servers
+  gather_facts: true
+
+  tasks:
+    - name: Ping managed servers
+      ansible.builtin.ping:
+
+    - name: Show OS Information
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }} is running {{ ansible_distribution }} {{ ansible_distribution_version }}"
