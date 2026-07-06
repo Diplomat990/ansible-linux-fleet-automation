@@ -1,0 +1,38 @@
+---
+- name: Create Linux admin user and configure SSH access
+  hosts: linux_servers
+  become: true
+
+  vars:
+    admin_user: linuxadmin
+
+  tasks:
+    - name: Create Linuxadmin user
+      ansible.builtin.user:
+        name: "{{ admin_user }}"
+        shell: /bin/bash
+        groups: wheel
+        append: true
+        create_home: true
+
+    - name: Create .ssh directory for linuxadmin
+      ansible.builtin.file:
+        path: "/home/{{ admin_user }}/.ssh"
+        state: directory
+        owner: "{{ admin_user }}"
+        group: "{{ admin_user }}"
+        mode: '0700'
+
+    - name: Add ssh public key for linuxadmin
+      ansible.builtin.authorized_key:
+        user: "{{ admin_user }}"
+        state: present
+        key: "{{ lookup('file', '/root/.ssh/id_ed25519.pub') }}"
+
+    - name: Allow Linuxadmin sudo access
+      ansible.builtin.copy:
+        dest: "/etc/sudoers.d/{{ admin_user }}"
+        content: "{{ admin_user }} ALL=(ALL) ALL\n"
+        owner: root
+        group: root
+        mode: '0440'
