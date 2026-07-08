@@ -1,0 +1,74 @@
+---
+- name: Install and validate role specific services
+  hosts: linux_servers
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Install nginx on web01
+      ansible.builtin.dnf: 
+        name: nginx
+        state: present 
+      when: inventory_hostname == "web01"
+
+    - name: Install MariaDB on db01
+      ansible.builtin.dnf:
+        name: mariadb-server
+        state: present
+      when: inventory_hostname == "db01"
+
+    - name: Install Samba and NFS on "nas01"
+      ansible.builtin.dnf:
+        name: 
+          - samba
+          - samba-client
+          - nfs-utils
+        state: present
+      when: inventory_hostname == "nas01"
+
+    - name: Start and enable ansible on web01
+      ansible.builtin.systemd_service:
+        name: nginx
+        state: started
+        enabled: true
+      when: inventory_hostname == "web01"
+
+    - name: Start and enable MariaDB on db01
+      ansible.builtin.systemd_service:
+        name: mariadb
+        state: started
+        enabled: true
+      when: inventory_hostname == "db01"
+
+    - name: start and enable samba on "nas01"
+      ansible.builtin.systemd_service:
+        name: smb
+        state: started
+        enabled: true
+      when: inventory_hostname == "nas01"
+
+    - name: start and enable NFS on nas01
+      ansible.builtin.systemd_service:
+        name: nfs-server
+        state: started
+        enabled: true
+      when: inventory_hostname == "nas01"
+
+    - name: check service status
+      ansible.builtin.command: "systemctl is-active {{ item }}"
+      loop:
+        - "{{ 'nginx' if inventory_hostname == 'web01' else omit }}"
+        - "{{ 'mariadb' if inventory_hostname == 'db01' else omit }}"
+        - "{{ 'smb' if inventory_hostname == 'nas01' else omit }}"
+        - "{{ 'nfs_server' if inventory_hostname == 'nas01' else omit }}"
+      register: service_status
+      changed_when: false
+      failed_when: false
+
+    - name: show service status result
+      ansible.builtin.debug:
+        var: service_status.results
+
+
+        
+
