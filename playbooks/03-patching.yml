@@ -1,0 +1,94 @@
+---
+- name: Patch RHEL Linux servers and collect evidence
+  hosts: linux_servers
+  become: true
+  gather_facts: true
+
+  vars:
+    patch_mode: "full"
+
+    service_map:
+      web01:
+        - sshd
+      db01:
+        - sshd
+      nas01:
+        - sshd
+
+  tasks:
+    - name: Ensure yum-utils is installed for reboot checks
+      ansible.builtin.dnf:
+        name: dnf-plugins-core
+        state: present
+
+    - name: Update DNF Package cache
+      ansible.builtin.dnf:
+        update_cache: true
+
+    - name: Apply security-only updates
+      ansible.builtin.dnf:
+        name: "*"
+        state: latest
+        security: true
+      when: patch_mode == "security"
+      register: patch_result
+
+    - name: Apply full system update
+      ansible.builtin.dnf:
+        name: "*"
+        state: latest
+      when: patch_mode == "full"
+      register: patch_result
+
+    - name: check if reboot is required
+      ansible.builtin.command: needs-restarting -r
+      register: reboot_required
+      changed_when: false
+      failed_when: false
+
+    - name: reboot server if required
+      ansible.builtin.reboot:
+        msg: "Reboot initiated by Ansible after patching"
+        reboot_timeout: 600
+      when: reboot_required.rc == 1
+
+    - name: wait for server to return after reboot
+      ansible.builtin.wait_for_connection:
+        timeout: 300
+      when: reboot_required.rc == 1
+
+    - name: check important services are active
+      ansible.builtin.command: "systemctl is-active {{ item }}"
+      loop: "{{ service_map[inventory_hostname] | default(['sshd']) }}"
+      register: service_checks
+      changed_when: false
+      failed_when: false
+
+    - name: Patch report
+      delegate_to: localhost
+      become: false
+      ansible.builtin.copy:
+        dest: "/root/ansible-linux-fleet-automation/reports/patch-report-{{ inventory_hostname }}.md"
+        content: |
+          # Patch Report - {{ inventory_hostname }}
+    
+          ## Server details
+          - Hostname: {{ inventory_hostname }}
+          - OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+          - Kernel: {{ ansible_kernel }}
+          - Patch Mode: {{ patch_mode }}
+
+          ## Patch results
+          - Packages changed: {{ patch_result.changed | default('unknown') }}
+          - Reboot required: {{ 'Yes' if reboot_required.rc == 1 else 'No' }}
+
+          ## Service checks
+          {% for result in service_checks.results %}
+          - {{ result.item }}: {{ 'active' if result.rc == 0 else 'not active / not installed' }}
+          {% endfor %}
+    
+          ## status
+          Patching task completed for {{ inventory_hostname }}.
+        
+
+
