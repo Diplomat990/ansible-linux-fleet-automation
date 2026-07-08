@@ -207,7 +207,98 @@ rm -f /etc/sudoers.d/linuxadmin
 | Reporting                | Planned     |
 
 
+## 04 - Role-Specific Services Playbook
 
+Playbook: `playbooks/04-services.yml`
 
+This playbook installs and enables role-specific services on each managed Linux server.
 
+| Server | Service |
+|---|---|
+| web01 | Nginx |
+| db01 | MariaDB |
+| nas01 | Samba / NFS |
 
+### What it does
+
+- Installs Nginx on `web01`
+- Installs MariaDB on `db01`
+- Installs Samba and NFS tools on `nas01`
+- Starts and enables services using `ansible.builtin.systemd_service`
+- Confirms service status after installation
+
+### Run command
+
+```bash
+ansible-playbook -i inventory/hosts.ini playbooks/04-services.yml -u root -k
+```
+
+### Manual validation
+
+```bash
+ssh root@192.168.56.21 "systemctl status nginx --no-pager"
+ssh root@192.168.56.24 "systemctl status mariadb --no-pager"
+ssh root@192.168.56.23 "systemctl status smb --no-pager"
+```
+
+### Evidence
+
+Service validation screenshots are stored in the `screenshots/` directory.
+
+Example:
+
+```text
+screenshots/services-validation.png
+```
+
+### Lesson Learned
+
+This task demonstrated how to install, enable, start and validate Linux services across different server roles using Ansible.
+
+## RHEL Local ISO Repository Fix
+
+Some RHEL servers did not have active Red Hat subscription repositories, so `dnf install` and `dnf update` failed.
+
+To continue the lab, I used the RHEL DVD ISO as a local offline repository.
+
+### Mount the ISO
+
+```bash
+mkdir -p /mnt/rhel
+mount /dev/cdrom /mnt/rhel
+```
+
+### Create BaseOS repo
+
+```bash
+cat <<EOF > /etc/yum.repos.d/local-baseos.repo
+[local-baseos]
+name=Local BaseOS
+baseurl=file:///mnt/rhel/BaseOS
+enabled=1
+gpgcheck=0
+EOF
+```
+
+### Create AppStream repo
+
+```bash
+cat <<EOF > /etc/yum.repos.d/local-appstream.repo
+[local-appstream]
+name=Local AppStream
+baseurl=file:///mnt/rhel/AppStream
+enabled=1
+gpgcheck=0
+EOF
+```
+
+### Refresh DNF cache
+
+```bash
+dnf clean all
+dnf makecache
+```
+
+### Lesson Learned
+
+This showed how to restore package management on an offline RHEL server using the installation ISO. In production, patching should use approved Red Hat repositories, Red Hat Satellite, or another managed patching solution.
