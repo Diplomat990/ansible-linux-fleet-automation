@@ -1,0 +1,155 @@
+---
+- name: Harden Linux Fleet and collect security details
+  hosts: linux_servers
+  become: true
+  gather_facts: true
+
+  vars: 
+    admin_user: linuxadmin
+    disable_password_login: false
+    web01_ip: "192.168.56.21"
+
+  tasks:
+    - name: Ensure firewalld is installed
+      ansible.builtin.dnf:
+        name: firewalld
+        state: present
+
+    - name: start and enable firewalld
+      ansible.builtin.systemd_service:
+        name: firewalld
+        state: started
+        enabled: true
+
+    - name: Allow ssh on all servers
+      ansible.builtin.command: firewall-cmd --add-service=ssh --permanent 
+      changed_when: false
+
+    - name: Allow web ports on web01
+      ansible.builtin.command: "firewall-cmd --permanent --add-port={{ item }}/tcp"
+      loop:
+        - 80
+        - 443
+      when: inventory_hostname == "web01"
+      changed_when: false
+
+    - name: Allow MariaDB from web01 only on db01
+      ansible.builtin.command: >
+        firewall-cmd --permanent
+        --add-rich-rule='rule family="ipv4" source address="{{ web01_ip }}" port port="3306" protocol="tcp" accept'
+      when: inventory_hostname == "db01"
+      changed_when: false
+
+    - name: Allow Samba and NFS ports on nas01
+      ansible.builtin.command: "firewall-cmd --permanent --add-port={{ item }}/tcp"
+      loop:
+        - 445
+        - 2049
+      when: inventory_hostname == "nas01"
+      changed_when: false
+
+    - name: reload firewall
+      ansible.builtin.command: firewall-cmd --reload
+      changed_when: false
+
+    - name: Disable root SSH login
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PermitRootLogin'
+        line: 'PermitRootLogin no'
+        backup: true
+
+    - name: Disable password SSH login only after SSH keys work
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PasswordAuthentication'
+        line: 'PasswordAuthentication no' 
+        backup: true
+      when: disable_password_login | bool
+
+    - name: Ensure linuxadmin has sudo access
+      ansible.builtin.copy:
+        dest: "/etc/sudoers.d/{{ admin_user }}"
+        content: "{{ admin_user }} ALL=(ALL) NOPASSWD:ALL\n"
+        owner: root
+        group: root
+        mode: '0440'
+
+    - name: Restart ssh service
+      ansible.builtin.systemd_service:
+        name: sshd
+        state: restarted
+
+    - name: Try to install failban
+      ansible.builtin.dnf:
+        name: fail2ban
+        state: present
+      register: fail2ban_install
+      failed_when: false
+
+    - name: start and enable fail2ban if installed
+      ansible.builtin.systemd_service:
+        name: fail2ban
+        state: started
+        enabled: true
+      when: fail2ban_install.rc is not defined or fail2ban_install.rc == 0
+      failed_when: flase
+
+    - name: capture failed SSH attempts
+      ansible.builtin.shell: journalctl -u --since "24 hours ago" | grep -i "failed" || true
+      register: failed_ssh
+      changed_when: false
+
+    - name: Check available security updates
+      ansible.builtin.command: dnf updateinfo list security
+      register: security_updates
+      changed_when: false
+      failed_when: false
+
+    - name: Save hardening evidence report
+      ansible.builtin.copy:
+        dest: "{{ playbook_dir }}/../reports/hardening-report-{{ inventory_hostname }}.md"
+        content: | 
+          # Hardening Report - {{ inventory_hostname }}
+        
+
+          ## Server
+          - Hostname: {{ inventory_hostname }}
+          - OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+          - Kernel: {{ ansible_kernel }} 
+
+          ## Controls Applied
+          - Root SSH login disabled
+          - Password SSH login disabled: {{ disable_password_login }}
+          - firewall configured
+          - linuxadmin sudo acccess confirmed
+          - fail2ban install attempted
+
+          ## Failed SSH Attempts
+          ```text
+          {{ failed_ssh.stdout | default('No security update information available') }}
+          ```
+
+          ## Security Updates check
+          ```text
+          {{ security_updates.stdout | default('No security update information available') }}
+          ```
+      delegate_to: localhost
+      become: false
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
