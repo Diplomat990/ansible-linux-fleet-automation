@@ -300,5 +300,82 @@ dnf makecache
 ```
 
 ### Lesson Learned
+This task demonstrated how to install, enable, start and validate Linux services across different server roles using Ansible.
 
-This showed how to restore package management on an offline RHEL server using the installation ISO. In production, patching should use approved Red Hat repositories, Red Hat Satellite, or another managed patching solution.
+
+---
+
+## 05 - Linux Hardening Playbook
+
+Playbook: `playbooks/05-hardening.yml`
+
+This playbook applies basic Linux hardening controls across the managed server fleet and creates security evidence reports.
+
+### What it does
+
+- Installs and enables `firewalld`
+- Allows only required firewall ports per server role
+- Disables root SSH login
+- Optionally disables SSH password login after SSH key access works
+- Confirms `linuxadmin` sudo access
+- Attempts to install and start `fail2ban`
+- Captures failed SSH login attempts
+- Checks available security updates
+- Saves hardening evidence into the `reports/` directory
+
+### Firewall Rules
+
+| Server | Allowed Ports |
+|---|---|
+| web01 | 22, 80, 443 |
+| db01 | 22, 3306 from web01 only |
+| nas01 | 22, 445, 2049 |
+
+### Safe First Run
+
+Run this first while password login is still enabled:
+
+```bash
+ansible-playbook -i inventory/hosts.ini playbooks/05-hardening.yml -u root -k
+```
+
+### Confirm SSH Key Access
+
+Before disabling password login, confirm `linuxadmin` can connect using the SSH key:
+
+```bash
+ssh -i /root/.ssh/id_ed25519 linuxadmin@192.168.56.21
+ssh -i /root/.ssh/id_ed25519 linuxadmin@192.168.56.24
+ssh -i /root/.ssh/id_ed25519 linuxadmin@192.168.56.23
+```
+
+### Final Hardening Run
+
+After SSH key access works on all servers, run:
+
+```bash
+ansible-playbook -i inventory/hosts.ini playbooks/05-hardening.yml -u linuxadmin --private-key /root/.ssh/id_ed25519 --ask-become-pass -e disable_password_login=true
+```
+
+### Evidence Generated
+
+```text
+reports/hardening-report-web01.md
+reports/hardening-report-db01.md
+reports/hardening-report-nas01.md
+```
+
+Each report includes:
+
+- Hostname
+- OS and kernel version
+- SSH hardening status
+- Firewall status
+- Failed SSH login attempts
+- Security update check output
+
+### Lesson Learned
+
+This task demonstrated how to apply controlled Linux hardening using Ansible while avoiding lockout. Password login should only be disabled after SSH key authentication has been tested successfully.
+
+
