@@ -309,7 +309,7 @@ This task demonstrated how to install, enable, start and validate Linux services
 
 Playbook: `playbooks/05-hardening.yml`
 
-This playbook applies basic Linux hardening controls across the managed server fleet and creates security evidence reports.
+This playbook applies Linux hardening controls across the managed server fleet and creates security evidence reports.
 
 ### What it does
 
