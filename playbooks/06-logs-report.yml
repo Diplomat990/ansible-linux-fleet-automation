@@ -1,0 +1,147 @@
+---
+- name: Generate enterprise patch evidence report
+  hosts: linux_servers
+  become: true
+  gather_facts: true
+
+  vars:
+    change_id: "CHG-LNX-001"
+    engineer_name: "Jolomi"
+    report_date: "{{ lookup('pipe', 'date +%F') }}"
+    report_file: "reports/patch-report-{{ report_date }}.md"
+
+    service_map:
+      web01:
+        - sshd
+        - nginx
+      db01:
+        - sshd
+        - mariadb
+      nas01:
+        - sshd
+        - smb
+        - nfs-server
+
+  tasks:
+    - name: Check reboot requirement
+      ansible.builtin.command: needs-restarting -r
+      register: reboot_check
+      changed_when: false
+      failed_when: false
+    
+    - name: Check service status
+      ansible.builtin.command: "systemctl is-active {{ item }}"
+      loop: "{{ service_map[inventory_hostname] | default(['sshd']) }}"
+      register: service_status
+      changed_when: false
+      failed_when: false
+
+    - name: capture recent DNF history
+      ansible.builtin.command: dnf history info last 
+      register: dnf_history
+      changed_when: false
+      failed_when: false
+
+    - name: capture firewall status
+      ansible.builtin.command: firewall-cmd --list-all
+      register: firewall_status
+      changed_when: false
+      failed_when: false
+
+    - name: capture failed ssh attempts
+      ansible.builtin.shell: journalctl -u -sshd --since "24 hours ago" | grep -i "failed" || true
+      register: failed_ssh
+      changed_when: false
+
+    - name: create reports directory
+      ansible.builtin.file:
+        path: reports
+        state: directory
+      delegate_to: localhost
+      become: false
+      run_once: true
+
+    - name: Generate evidence report
+      ansible.builtin.copy:
+        dest: "{{ report_file }}"
+        content: | 
+          # Linux fleet evidence report
+          
+
+          ## change details
+          - change ID: {{ change_id }}
+          - Engineer: {{ engineer_name }}
+          - Date: {{ report_date }}
+          - Final status: Completed
+
+          ## servers patched
+
+          {% for host in groups['linux_servers'] %}
+          - {{ host }} - {{ hostvars[host].ansible_distribution | default('Unknown OS') }} {{ hostvars[host].ansible_distribution_version | default('') }}
+          {%endfor %}
+
+          ---
+
+          {% for host in groups['linux_servers'] %}
+          ## Server: {{ host }}
+          
+
+          ### packages updated
+          ```text
+          {{ hostvars[host].dnf_history.stdout | default('No DNF history available') }}
+          ```
+
+          ### Reboot Required
+
+          {{ 'Yes' if hostvars[host].reboot_check.rc == 1 else 'No' }}
+
+          ### Services Checked
+
+          {% for result in hostvars[host].service_status.results %}
+          - {{ result.item }}: {{ 'Running' if result.rc == 0 else 'Failed / Not Installed' }}
+          {% endfor %}
+
+          ### Failed Services
+
+          {% for result in hostvars[host].service_status.results %}
+          {% if result.rc != 0 %}
+          - {{ result.item }}
+          {% endif %}
+          {% endfor %}
+
+          ### Firewall Status
+
+          ```text
+          {{ hostvars[host].firewall_status.stdout | default('Firewall status unavailable') }}
+          ```
+
+          ### Failed SSH Attempts
+
+          ```text
+          {{ hostvars[host].failed_ssh.stdout | default('No failed SSH attempts found') }}
+          ```
+
+          ### Issues Found
+
+          - Review any failed services listed above.
+          - Review failed SSH attempts if present.
+
+          ### Remediation
+
+          - Restart or install failed services where required.
+          - Confirm firewall rules match server role.
+          - Investigate repeated failed SSH attempts.
+
+          ---
+
+          {% endfor %}
+      delegate_to: localhost
+      become: false
+      run_once: true
+
+          
+
+
+
+
+
