@@ -378,4 +378,66 @@ Each report includes:
 
 This task demonstrated how to apply controlled Linux hardening using Ansible while avoiding lockout. Password login should only be disabled after SSH key authentication has been tested successfully.
 
+---
 
+## 06 - Enterprise Evidence Report Playbook
+
+Playbook: `playbooks/06-evidence-report.yml`
+
+This playbook generates a consolidated enterprise-style evidence report after patching, service validation and hardening tasks.
+
+The report is similar to the type of evidence that could be attached to a ServiceNow change ticket.
+
+### Purpose
+
+The evidence report provides a clear summary of:
+
+- Change ID
+- Engineer name
+- Date
+- Servers checked
+- Packages updated
+- Reboot requirement
+- Services checked
+- Failed services
+- Firewall status
+- Issues found
+- Remediation actions
+- Final status
+
+### Report Output
+
+The playbook creates a report in the `reports/` directory:
+
+```text
+reports/patch-report-YYYY-MM-DD.md
+```
+
+Example:
+
+```text
+reports/patch-report-2026-06-30.md
+```
+
+### Run command
+
+```bash
+ansible-playbook -i inventory/hosts.ini playbooks/06-evidence-report.yml
+```
+
+### Change Details
+
+| Field | Value |
+|---|---|
+| Change ID | CHG-LNX-001 |
+| Engineer | Ukubeyinje Jolomi |
+| Report Type | Linux patching and hardening evidence |
+| Environment | RHEL-compatible Linux lab |
+
+### Why this matters
+
+This task demonstrates enterprise-style evidence collection after infrastructure changes. It shows the ability to document technical work clearly for audit, change control and ticket closure.
+
+### Lesson Learned
+
+Automation should not only make changes; it should also produce evidence showing what was changed, what was checked, what failed and what remediation was completed.
