@@ -1,0 +1,103 @@
+---
+- name: Collect linux server information
+  hosts: linux_servers
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Collect uptime
+      ansible.builtin.command: uptime
+      register: uptime_result
+      changed_when: false
+
+    - name: Collect disk usage 
+      ansible.builtin.command: df -h 
+      register: disk_result
+      changed_when: false
+
+    - name: Collect memory usuage
+      ansible.builtin.command: free -m
+      register: memory_result
+      changed_when: false
+
+    - name: Collect error logs
+      ansible.builtin.command: journalctl -p err -n 50 --no-pager
+      register: error_logs
+      changed_when: false
+      failed_when: false
+
+    - name: Collect failed systemd services
+      ansible.builtin.command: systemctl --failed --no-pager
+      register: failed_services
+      changed_when: false
+      failed_when: false
+
+    - name: Collect listening port
+      ansible.builtin.command: ss -tulpen
+      register: ports_result
+      changed_when: false
+      failed_when: false
+
+    - name: collect firewall status
+      ansible.builtin.command: firewall-cmd --list-all
+      register: firewall_result
+      changed_when: false
+      failed_when: false
+
+    - name: create directory report on ansible control
+      ansible.builtin.file:
+        path: "{{ playbook_dir }}/../reports"
+        state: directory
+      delegate_to: localhost
+      become: false
+      run_once: true
+
+    - name: save troubleshooting report
+      ansible.builtin.copy:
+        dest: "{{ playbook_dir }}/../reports/troubleshooting-report-{{ inventory_hostname }}.md"
+        content: |
+          # Troubleshooting Report - {{ inventory_hostname }}
+
+
+          ## server details
+          - Hostname: {{ inventory_hostname }}
+          - OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+          - Kernel: {{ ansible_kernel }}
+
+          ## uptime
+          ```text
+          {{ uptime_result.stdout }}
+
+          ## Disk Usage
+          ```text
+          {{ disk_result.stdout }}
+          ```
+
+          ## Memory Usage
+          ```text
+          {{ memory_result.stdout }}
+          ```
+
+          ## Failed Services
+          ```text
+          {{ failed_services.stdout }}
+          ```
+
+          ## Recent Error Logs
+          ```text
+          {{ error_logs.stdout }}
+          ```
+
+          ## Listening Ports
+          ```text
+          {{ ports_result.stdout }}
+          ```
+
+          ## firewall status
+          ```text
+          {{ firewall_result.stdout | default('Firewall status unavailable') }}
+
+      delegate_to: localhost
+      become: false
+
+
