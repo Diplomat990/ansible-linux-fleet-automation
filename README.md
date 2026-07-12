@@ -441,3 +441,67 @@ This task demonstrates enterprise-style evidence collection after infrastructure
 ### Lesson Learned
 
 Automation should not only make changes; it should also produce evidence showing what was changed, what was checked, what failed and what remediation was completed.
+
+
+---
+
+## 07 - Linux Troubleshooting Playbook
+
+Playbook: `playbooks/troubleshooting.yml`
+
+This playbook collects common Linux troubleshooting evidence from all managed servers.
+
+It is designed to simulate the type of checks an engineer would perform during a real infrastructure incident.
+
+### What it collects
+
+- Server uptime
+- Disk usage
+- Memory usage
+- Failed systemd services
+- Recent error logs
+- Listening ports
+- Firewall status
+
+### Commands Collected
+
+| Incident Type | Command |
+|---|---|
+| Disk full | `df -h` |
+| High memory usage | `free -m` |
+| Service down | `systemctl --failed` |
+| Error logs | `journalctl -p err -n 50` |
+| Port not listening | `ss -tulpen` |
+| Firewall issue | `firewall-cmd --list-all` |
+
+### Run command
+
+```bash
+ansible-playbook -i inventory/hosts.ini playbooks/troubleshooting.yml
+```
+
+Or with explicit user and SSH key:
+
+```bash
+ansible-playbook -i inventory/hosts.ini playbooks/troubleshooting.yml -u linuxadmin --private-key /root/.ssh/id_ed25519
+```
+
+### Evidence Generated
+
+The playbook creates one troubleshooting report per server:
+
+```text
+reports/troubleshooting-report-web01.md
+reports/troubleshooting-report-db01.md
+reports/troubleshooting-report-nas01.md
+```
+
+### Why this matters
+
+This demonstrates practical Linux incident troubleshooting using Ansible. Instead of manually logging into each server, the engineer can collect consistent evidence from the full Linux fleet in one run.
+
+### Lesson Learned
+
+Troubleshooting automation helps reduce investigation time, standardise evidence collection and support faster incident resolution.
+
+
